@@ -1,0 +1,118 @@
+import json
+import sys
+import traceback
+import uuid
+import base64
+
+_protocol_out = sys.stdout
+try: sys.stdin.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError): pass
+try: sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError): pass
+_protocol_in = sys.stdin
+sys.stdout = sys.stderr
+
+def _send(message):
+    _protocol_out.write(json.dumps(message, ensure_ascii=True, separators=(",", ":")) + "\n")
+    _protocol_out.flush()
+
+def _encode(value):
+    if value is None or isinstance(value, (str, int, float, bool)): return value
+    if isinstance(value, (list, tuple, set)): return [_encode(item) for item in value]
+    if isinstance(value, dict): return {str(key): _encode(item) for key, item in value.items()}
+    return str(value)
+
+def _api(operation, arguments=None):
+    request_id = uuid.uuid4().hex
+    message = {"type":"rpc", "id":request_id, "operation":operation, "arguments":_encode(arguments or {})}
+    _send(message)
+    response_line = _protocol_in.readline()
+    if not response_line: raise RuntimeError("VSTO API response stream closed")
+    try: response = json.loads(response_line.lstrip("\ufeff"))
+    except json.JSONDecodeError as exception: raise RuntimeError("Invalid VSTO API response: " + repr(response_line)) from exception
+    if response.get("type") != "rpc-result" or response.get("id") != request_id: raise RuntimeError("Invalid VSTO RPC response")
+    if not response.get("ok"): raise UniverseApiError(response.get("code", "PYTHON_API_EXECUTION_FAILED"), response.get("message", "Universe API failed"))
+    return response.get("value")
+
+class UniverseApiError(RuntimeError):
+    def __init__(self, code, message): super().__init__(message); self.code = code
+
+class UniverseMethodNotFound(RuntimeError):
+    pass
+
+class _Invocation:
+    def __init__(self, context):
+        self.purpose = context.get("Purpose", "")
+        self.version = context.get("Version", "")
+        self.parameters = list(context.get("Parameters", []))
+        self.is_headless = bool(context.get("IsHeadless", False))
+
+class _ProjectApi:
+    def __init__(self, context): self.name, self.root_path = context.get("ProjectName"), context.get("ProjectRoot")
+    def info(self): return _api("project.info")
+    def versions(self): return _api("project.versions")
+    def has_version(self, version): return version in self.versions()
+    def resolve(self, path): return _api("project.resolve", {"path":path})
+
+class _ConfigApi:
+    def system(self, key, version=None): return _api("config.system", {"key":key, "version":version})
+    def custom(self, key, column, version=None): return _api("config.custom", {"key":key, "column":column, "version":version})
+
+class _DataApi:
+    def exists(self, name): return _api("data.exists", {"name":name})
+    def columns(self, name, version=None): return _api("data.columns", {"name":name, "version":version})
+    def keys(self, name, version=None): return _api("data.keys", {"name":name, "version":version})
+    def get(self, name, key, column, version=None): return _api("data.get", {"name":name, "key":key, "column":column, "version":version})
+    def read(self, name, version=None): return _api("data.read", {"name":name, "version":version})
+
+class _LogApi:
+    def _write(self, level, message): return _api("log.write", {"level":level, "message":str(message)})
+    def debug(self, message): return self._write("debug", message)
+    def info(self, message): return self._write("info", message)
+    def warning(self, message): return self._write("warning", message)
+    def error(self, message): return self._write("error", message)
+
+class _OutputApi:
+    def path(self, path): return _api("output.path", {"path":path})
+    def exists(self, path): return _api("output.exists", {"path":path})
+    def write_text(self, path, content, encoding="utf-8"):
+        if encoding.lower().replace("-", "") != "utf8": raise UniverseApiError("PYTHON_API_ARGUMENT_INVALID", "API 1.0 仅支持 UTF-8 文本输出")
+        return _api("output.write_text", {"path":path, "content":content})
+    def write_json(self, path, value):
+        return self.write_text(path, json.dumps(value, ensure_ascii=False, indent=2))
+    def write_bytes(self, path, content):
+        if not isinstance(content, (bytes, bytearray)): raise UniverseApiError("PYTHON_API_ARGUMENT_INVALID", "二进制输出内容必须是 bytes")
+        return _api("output.write_bytes", {"path":path, "content":base64.b64encode(bytes(content)).decode("ascii")})
+
+class UniverseContext:
+    def __init__(self, context):
+        self.api_version = context.get("ApiVersion", "1.0")
+        if self.api_version != "1.0":
+            raise UniverseApiError("PYTHON_API_VERSION_UNSUPPORTED", "不支持 Universe Python API " + str(self.api_version))
+        self.invocation = _Invocation(context)
+        self.project = _ProjectApi(context)
+        self.config = _ConfigApi()
+        self.data = _DataApi()
+        self.log = _LogApi()
+        self.output = _OutputApi()
+
+def main():
+    if len(sys.argv) < 3: raise RuntimeError("Missing CPython worker session arguments")
+    with open(sys.argv[1], "r", encoding="utf-8-sig") as start_file: start = json.load(start_file)
+    scope = {"__name__":"__universe_script__", "__file__":start["scriptPath"]}
+    ctx = UniverseContext(start.get("context", {}))
+    with open(start["scriptPath"], "rb") as stream: exec(compile(stream.read(), start["scriptPath"], "exec"), scope, scope)
+    method = start.get("methodName")
+    if method:
+        if method not in scope or not callable(scope[method]): raise UniverseMethodNotFound("Python method not found: " + method)
+        result = scope[method](ctx, *start.get("parameters", []))
+    else: result = scope.get("result")
+    _send({"type":"result", "ok":True, "value":_encode(result)})
+
+if __name__ == "__main__":
+    try: main()
+    except SyntaxError as exception: _send({"type":"result", "ok":False, "code":"PYTHON_SYNTAX_ERROR", "message":str(exception), "traceback":traceback.format_exc()})
+    except UniverseMethodNotFound as exception: _send({"type":"result", "ok":False, "code":"PYTHON_METHOD_NOT_FOUND", "message":str(exception), "traceback":traceback.format_exc()})
+    except ModuleNotFoundError as exception: _send({"type":"result", "ok":False, "code":"PYTHON_MODULE_NOT_FOUND", "message":str(exception), "traceback":traceback.format_exc()})
+    except UniverseApiError as exception: _send({"type":"result", "ok":False, "code":exception.code, "message":str(exception), "traceback":traceback.format_exc()})
+    except Exception as exception: _send({"type":"result", "ok":False, "code":"PYTHON_EXECUTION_FAILED", "message":str(exception), "traceback":traceback.format_exc()})
