@@ -8,3 +8,7 @@ CheckOutAddIn 首次安装证书信任包
 
 该操作只将 CheckOutAddIn 的公钥证书导入当前 Windows 用户的“受信任的根证书颁发机构”和“受信任的发布者”。
 它不会复制或安装发布私钥，也不会修改其他 Windows 用户的证书库。
+
+如果当前 Windows 用户已经使用 Codex（默认目录 %USERPROFILE%\.codex，或已设置 CODEX_HOME），
+CheckOutAddIn 会在安装后首次启动 Excel 时自动安装或更新 checkout-addin 技能。
+未安装 Codex 时会静默跳过，不影响 CheckOutAddIn 的安装和使用。
