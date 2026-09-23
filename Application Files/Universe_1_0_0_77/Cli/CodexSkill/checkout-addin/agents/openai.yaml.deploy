@@ -1,0 +1,4 @@
+interface:
+  display_name: "CheckOutAddIn 游戏配置"
+  short_description: "用 CLI 安全创建、维护、校验并导出游戏配置工程"
+  default_prompt: "Use $checkout-addin to create or modify a game configuration project safely."

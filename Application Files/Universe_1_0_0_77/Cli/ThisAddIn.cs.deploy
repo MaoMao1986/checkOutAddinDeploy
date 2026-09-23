@@ -1,0 +1,320 @@
+﻿using Microsoft.Office.Interop.Excel;
+using System.Collections.Generic;
+using System.Windows.Forms;
+using Excel = Microsoft.Office.Interop.Excel;
+using Office = Microsoft.Office.Core;
+using Tools = Microsoft.Office.Tools;
+using System;
+using System.Diagnostics;
+using System.Threading;
+using CheckOutAddIn.ExcelManager;
+using CheckOutAddIn.Automation;
+using CheckOutAddIn.Automation.Contracts;
+
+namespace CheckOutAddIn
+{
+    public partial class ThisAddIn
+    {
+        private EventWaitHandle m_ProcessInstanceGuard;
+        private bool m_IsPrimaryInstance;
+        private readonly TaskPaneLifecycleRegistry<Tools.CustomTaskPane> m_TaskPanes =
+            new TaskPaneLifecycleRegistry<Tools.CustomTaskPane>(pane => pane.Control is MyTaskPanel);
+        private VstoAutomationBridge m_AutomationBridge;
+        private ProjectWorkbookChangeCoordinator m_WorkbookChanges;
+        private ExcelApplicationEventCoordinator m_ApplicationEvents;
+        private WorkbookOpenApplicationService m_WorkbookOpen;
+        private ListObjectCommentFormatService m_CommentFormat;
+        private SelectionContextApplicationService m_SelectionContext;
+        private AddInLifecycleCoordinator m_Lifecycle;
+
+        private void ThisAddIn_Startup(object sender, System.EventArgs e)
+        {
+            m_Lifecycle = new AddInLifecycleCoordinator();
+            try
+            {
+                bool t_CreatedNew = false;
+                m_Lifecycle.StartStep(() => m_ProcessInstanceGuard = new EventWaitHandle(
+                    false, EventResetMode.ManualReset,
+                    @"Local\Universe.LegacyVsto." + Process.GetCurrentProcess().Id, out t_CreatedNew),
+                    DisposeProcessInstanceGuard, DisposeProcessInstanceGuard);
+                m_IsPrimaryInstance = t_CreatedNew;
+                if (!m_IsPrimaryInstance)
+                {
+                    m_Lifecycle.Shutdown();
+                    return;
+                }
+
+                m_Lifecycle.StartStep(WindowController.Initialize,
+                    () => LogLifecycleErrors(WindowController.Shutdown()),
+                    () => LogLifecycleErrors(WindowController.Shutdown()));
+                m_Lifecycle.StartStep(LogController.Initialize, LogController.Shutdown, LogController.Shutdown);
+                InstallCodexSkillIfAvailable();
+                m_Lifecycle.StartStep(ProjectController.Load);
+                m_Lifecycle.StartStep(PythonController.Load);
+                m_Lifecycle.StartStep(() => m_WorkbookChanges =
+                    new ProjectWorkbookChangeCoordinator(new LegacyProjectWorkbookChangeActions()));
+                m_Lifecycle.StartStep(() => m_CommentFormat = new ListObjectCommentFormatService());
+                m_Lifecycle.StartStep(() => m_ApplicationEvents = new ExcelApplicationEventCoordinator(
+                    () => !string.IsNullOrEmpty(ProjectController.ActiveProjectName),
+                    message => LogController.WriteWarning(message),
+                    () => WindowController.ShowWindow<LogWindow>(),
+                    exception => exception.HResult == -2147352566));
+                m_Lifecycle.StartStep(() => m_WorkbookOpen = new WorkbookOpenApplicationService(
+                    () => ProjectController.ActiveProject,
+                    project => project.Data.GetDataKeyListInAllWorkBooks(),
+                    key => MapDataInfos.GetInstance().ReadOnly(key).Format(), ReportWorkbookFormatFailure));
+                m_Lifecycle.StartStep(() =>
+                {
+                    var menuHost = new VstoRangeContextMenuHost();
+                    m_SelectionContext = new SelectionContextApplicationService(
+                        range => RangeInfo.CreateNew((Microsoft.Office.Interop.Excel.Range)range), menuHost.Refresh);
+                });
+                m_Lifecycle.StartStep(StartAutomationBridge, DisposeAutomationBridge, DisposeAutomationBridge);
+                // Excel 关闭阶段不解绑 COM 事件；启动失败时则安全地逆序回滚订阅。
+                m_Lifecycle.StartStep(SubscribeApplicationEvents, UnsubscribeApplicationEvents);
+                m_Lifecycle.CompleteStartup();
+            }
+            catch (Exception ex)
+            {
+                LogLifecycleErrors(m_Lifecycle?.RollbackStartup());
+                LogController.WriteWarning(ex.Message);
+                try { WindowController.ShowWindow<LogWindow>(); }
+                catch { /* 窗口宿主自身启动失败时只保留日志，不能覆盖原始异常。 */ }
+            }
+        }
+
+        private void StartAutomationBridge()
+        {
+            try
+            {
+                m_AutomationBridge = new VstoAutomationBridge(Globals.ThisAddIn.Application);
+                m_AutomationBridge.Start();
+            }
+            catch
+            {
+                DisposeAutomationBridge();
+                throw;
+            }
+        }
+
+        private static void InstallCodexSkillIfAvailable()
+        {
+            try
+            {
+                CodexSkillInstaller.InstallBundledSkill();
+            }
+            catch (Exception exception)
+            {
+                // Codex 技能是可选集成，不能阻断 Excel 插件启动。
+                LogController.WriteWarning("Codex 技能同步失败：" + exception.Message);
+            }
+        }
+
+        private void DisposeAutomationBridge()
+        {
+            m_AutomationBridge?.Dispose();
+            m_AutomationBridge = null;
+        }
+
+        private void DisposeProcessInstanceGuard()
+        {
+            m_ProcessInstanceGuard?.Dispose();
+            m_ProcessInstanceGuard = null;
+            m_IsPrimaryInstance = false;
+        }
+
+        private void SubscribeApplicationEvents()
+        {
+            try
+            {
+                Globals.ThisAddIn.Application.WorkbookOpen += Application_WorkbookOpen;
+                Globals.ThisAddIn.Application.WorkbookActivate += Application_WorkbookActivate;
+                Globals.ThisAddIn.Application.WorkbookBeforeSave += Application_WorkbookBeforeSave;
+                Globals.ThisAddIn.Application.WorkbookBeforeClose += Application_WorkbookBeforeClose;
+                Globals.ThisAddIn.Application.SheetSelectionChange += Application_SheetSelectionChange;
+                Globals.ThisAddIn.Application.SheetChange += Application_SheetChange;
+                Globals.ThisAddIn.Application.SheetActivate += Application_SheetActivate;
+            }
+            catch
+            {
+                UnsubscribeApplicationEvents();
+                throw;
+            }
+        }
+
+        private void UnsubscribeApplicationEvents()
+        {
+            Globals.ThisAddIn.Application.SheetActivate -= Application_SheetActivate;
+            Globals.ThisAddIn.Application.SheetChange -= Application_SheetChange;
+            Globals.ThisAddIn.Application.SheetSelectionChange -= Application_SheetSelectionChange;
+            Globals.ThisAddIn.Application.WorkbookBeforeClose -= Application_WorkbookBeforeClose;
+            Globals.ThisAddIn.Application.WorkbookBeforeSave -= Application_WorkbookBeforeSave;
+            Globals.ThisAddIn.Application.WorkbookActivate -= Application_WorkbookActivate;
+            Globals.ThisAddIn.Application.WorkbookOpen -= Application_WorkbookOpen;
+        }
+
+        private static void LogLifecycleErrors(IEnumerable<Exception> errors)
+        {
+            if (errors == null) return;
+            foreach (Exception error in errors) LogController.WriteWarning(error.Message);
+        }
+
+        private void Application_SheetActivate(object Sh)
+        {
+            if (ProjectChangeEventGate.IsSuppressed) return;
+            m_ApplicationEvents.SheetInteraction(() => AddSelectionMenu(
+                Globals.ThisAddIn.Application.Selection as Excel.Range));
+        }
+
+        private void Application_SheetChange(object Sh, Range Target)
+        {
+            if (ProjectChangeEventGate.IsSuppressed) return;
+            m_ApplicationEvents.SheetChanged(() =>
+            {
+                m_CommentFormat.HandleSingleCellChange(Target);
+                string t_DataName = ProjectDataTableLocator.Current.Resolve(Target);
+                m_WorkbookChanges.SheetChanged(t_DataName);
+            });
+        }
+
+        /// <summary>
+        /// 有选择变化的话如何处理
+        /// </summary>
+        /// <param name="Sh"></param>
+        /// <param name="Target"></param>
+        private void Application_SheetSelectionChange(object Sh, Excel.Range Target)
+        {
+            if (ProjectChangeEventGate.IsSuppressed) return;
+            m_ApplicationEvents.SheetInteraction(() =>
+            {
+                m_CommentFormat.CaptureSelection(Target);
+                AddSelectionMenu(Target);
+            });
+        }
+
+        /// <summary>
+        /// 关闭文件前检测
+        /// </summary>
+        /// <param name="Wb"></param>
+        /// <param name="Cancel"></param>
+        private void Application_WorkbookBeforeClose(Excel.Workbook Wb, ref bool Cancel)
+        {
+            m_ApplicationEvents.WorkbookBeforeClose(() => ForgetWorkbookTaskPanes(Wb),
+                () => m_WorkbookChanges.WorkbookAccessChanged(Wb.FullName), ProjectSheets.Close);
+        }
+
+        /// <summary>
+        /// 保存文档前会关闭sheet页，且保存数据
+        /// </summary>
+        /// <param name="Wb"></param>
+        /// <param name="SaveAsUI"></param>
+        /// <param name="Cancel"></param>
+        private void Application_WorkbookBeforeSave(Excel.Workbook Wb, bool SaveAsUI, ref bool Cancel)
+        {
+            m_ApplicationEvents.WorkbookBeforeSave(ProjectSheets.Close);
+        }
+
+        private void Application_WorkbookActivate(Excel.Workbook Wb)
+        {
+            m_ApplicationEvents.WorkbookActivated(() => m_AutomationBridge?.RefreshRegistration(), ShowActiveTaskPane);
+        }
+
+        /// <summary>
+        /// 打开文件前删除上次未删除的配置文件，并保存文件
+        /// </summary>
+        /// <param name="Wb"></param>
+        private void Application_WorkbookOpen(Excel.Workbook Wb)
+        {
+            m_ApplicationEvents.WorkbookOpened(() => m_AutomationBridge?.RefreshRegistration(),
+                () => m_WorkbookOpen.Execute(
+                    () => m_WorkbookChanges.WorkbookAccessChanged(Wb.FullName), ShowActiveTaskPane,
+                    ProjectSheets.ProjectSheetList.Keys, Wb.Exists_Worksheet,
+                    name => Wb.Get_Worksheet(name).Delete(), Wb.Save,
+                    () => m_CommentFormat.FormatWorkbook(Wb)));
+        }
+
+        private void AddSelectionMenu(Excel.Range selection)
+        {
+            m_SelectionContext.Refresh(selection);
+        }
+
+        private void ShowActiveTaskPane()
+        {
+            Tools.CustomTaskPane pane = GetActivePanel();
+            if (pane?.Control is MyTaskPanel panel) panel.Visible = true;
+        }
+
+        private static void ReportWorkbookFormatFailure(string key, Exception exception)
+        {
+            AutomationDiagnostic diagnostic = ExportDiagnosticClassifier.Create(
+                "WORKBOOK_DATA_LOAD_FAILED", ExportDiagnosticStage.DataRead, exception, key);
+            ExportDiagnosticLocationResolver.Enrich(diagnostic);
+            LogController.WriteExportDiagnostic(diagnostic, true);
+        }
+
+        private void ThisAddIn_Shutdown(object sender, System.EventArgs e)
+        {
+            LogLifecycleErrors(m_Lifecycle?.Shutdown());
+            m_Lifecycle = null;
+            m_WorkbookChanges = null;
+            m_ApplicationEvents = null;
+            m_WorkbookOpen = null;
+            m_CommentFormat = null;
+            m_SelectionContext = null;
+            m_TaskPanes.ForgetAll();
+            // VSTO/Excel 正在关闭时不再遍历 COM 集合、移除任务窗格或解绑事件。
+            // 这些对象由 VSTO 宿主随 AppDomain 一并释放，主动操作会造成关闭重入和卡死。
+        }
+
+        #region VSTO 生成的代码
+
+        /// <summary>
+        /// 设计器支持所需的方法 - 不要修改
+        /// 使用代码编辑器修改此方法的内容。
+        /// </summary>
+        private void InternalStartup()
+        {
+            this.Startup += new System.EventHandler(ThisAddIn_Startup);
+            this.Shutdown += new System.EventHandler(ThisAddIn_Shutdown);
+        }
+
+        #endregion
+
+        /// <summary>
+        /// 获取活动的任务窗格
+        /// </summary>
+        /// <returns></returns>
+        public Tools.CustomTaskPane GetActivePanel()
+        {
+            if(Application.ActiveWindow == null)
+            {
+                return null;
+            }
+
+            Excel.Window activeWindow = Application.ActiveWindow;
+            int t_hwnd = activeWindow.Hwnd;
+            return m_TaskPanes.GetOrCreate(t_hwnd, CustomTaskPanes,
+                pane => (pane?.Window as Excel.Window)?.Hwnd,
+                () =>
+                {
+                MyTaskPanel t_MyControl = new MyTaskPanel();
+                Tools.CustomTaskPane t_CustomTaskPane = CustomTaskPanes.Add(t_MyControl,
+                    Application.ActiveWorkbook.Name, activeWindow);
+                t_CustomTaskPane.Visible = true;
+                t_CustomTaskPane.DockPosition = Office.MsoCTPDockPosition.msoCTPDockPositionLeft;
+                return t_CustomTaskPane;
+                });
+        }
+
+        internal int RegisteredTaskPaneCount => m_TaskPanes.Count;
+
+        private void ForgetWorkbookTaskPanes(Excel.Workbook workbook)
+        {
+            if (workbook == null) return;
+            foreach (Excel.Window window in workbook.Windows)
+            {
+                try { m_TaskPanes.Forget(window.Hwnd); } catch { }
+            }
+        }
+    }
+}
