@@ -46,6 +46,7 @@ Parse the JSON `AutomationResult`, not console prose alone:
 - require `Persisted=true` when the requested operation should write;
 - inspect `OutputFiles` for generated artifacts;
 - verify postconditions with `project inspect`, `workbook inspect`, `data read`, or `project validate` as appropriate.
+- Deleting rows or shifting columns in a workbook with formula/reference dependencies requires locally installed Excel. The CLI edits an isolated temporary copy with Excel and recalculates before atomic replacement (`AccessKind=Interop`); without Excel it fails with `TABLE_FORMULA_EXCEL_REQUIRED`. Verify recalculated formula results, not merely unchanged formula text or caches. Regenerate previously misaligned candidates from the pre-edit backup.
 
 Do not blindly retry `InvalidArguments`, `NotFound`, `ValidationFailed`, bridge-unavailable, or workbook-conflict failures. Re-inspect the relevant state and correct the cause.
 

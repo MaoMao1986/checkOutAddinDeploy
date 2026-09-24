@@ -306,6 +306,8 @@ checkout data-call build --input '{
 
 ### 5.6 表格编辑（6）
 
+删除行或增删列时，若工作簿存在公式、命名引用等依赖，CLI 会在临时副本中使用独立 Excel 实例完成原生编辑、重算和保存，再原子替换文件；需要本机安装 Excel，返回的 AccessKind 为 Interop。没有 Excel 时返回 TABLE_FORMULA_EXCEL_REQUIRED，原文件不变。无公式依赖的表仍可离线快速编辑。公式删除后的验收应检查实际重算结果，不可只比较字面公式或旧缓存。不要将此前发生错位的副本作为新版的输入，应从删除前备份重新生成。
+
 `checkout table row add`、`checkout table row delete`、`checkout table column add`、`checkout table column delete`、`checkout table cell set`、`checkout table batch`。
 
 批处理操作结构：
