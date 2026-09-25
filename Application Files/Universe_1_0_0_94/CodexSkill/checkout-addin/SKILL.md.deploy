@@ -1,0 +1,56 @@
+---
+name: checkout-addin
+description: Use the CheckOutAddIn CLI to create, inspect, modify, validate, import, transform, and export game configuration projects and their Excel/ListObject data. Apply when a task concerns CheckOutAddIn projects, versions, tables, data configurations, headers, enums, exports, calendars, formulas, or data-call expressions; do not use it for unrelated spreadsheets.
+---
+
+# CheckOutAddIn game configuration
+
+Operate through the old `CheckOutAddIn` VSTO product line and its `checkout` CLI. Do not substitute the `Universe` project or bypass existing business rules by directly rewriting project JSON.
+
+## Start every task
+
+1. Locate `checkout.exe`. For an installed release, read `references/cli-path.txt` beside this skill; the VSTO add-in refreshes this absolute path on startup after each update. In PowerShell, assign its trimmed contents to `$checkout`, verify `Test-Path -LiteralPath $checkout`, then invoke `& $checkout capabilities list`. If the locator is missing or stale, start Excel with the updated CheckOutAddIn loaded and read it again; do not guess a ClickOnce cache version. In a source checkout, use `CheckOutAddIn.Cli/bin/Debug/net472/checkout.exe` or the requested build configuration. If `checkout` is on `PATH`, use it directly.
+2. Run `checkout capabilities list` and treat its `Command`, `Syntax`, `Mutates`, and `RequiresExcel` fields as the authoritative interface for the installed version.
+3. Inspect the target before changing it:
+   - project structure or configuration: `project inspect`
+   - workbook, Sheet, ListObject, columns, or rows: `workbook inspect`
+   - resolved business data: `data read`
+4. Read [references/cli-guide.md](references/cli-guide.md) when selecting commands, constructing JSON payloads, creating a project, or handling a failure. Read only the relevant section for the task.
+
+## Choose the highest-level operation
+
+- New game project: use `project scaffold` with a manifest.
+- Configure an existing ListObject: use `data configure-table`.
+- Multiple row/column/cell changes: use one `table batch` transaction.
+- Large table batches: use `--operations-file <UTF-8 JSON file>` (preferred) or `--operations-stdin` instead of splitting a table solely to fit command-line limits. Supply exactly one operations input; the file/stdin content is the same JSON array as `--operations`.
+- Multiple project configuration changes: use one `config batch` transaction.
+- Export: run `project validate`, then `export validate` or `export batch-validate`, then the matching export command.
+- Complex data-call text: use `data-call build` or `data-call parse`.
+
+Use lower-level workbook or table commands only when the higher-level operation does not cover the requested outcome.
+
+## Mutation discipline
+
+- Prefer explicit `--project` paths for reproducible automation; use `--project-name` only when the user intends the local registry.
+- Use `--dry-run`, validation commands, or a non-saving preview whenever the selected command supports one.
+- Do not infer permission for deletion, import, export, or changes outside the paths and project the user placed in scope.
+- Commands marked `RequiresExcel=true` need Excel running with CheckOutAddIn loaded. A dry-run that performs no bridge operation may work without Excel.
+- Treat `table batch`, `config batch`, and `project scaffold` as the preferred atomic boundaries. Do not split them into many writes without a concrete reason.
+- Preserve existing version filtering, automatic indexing, comment-row handling, title conversion, and Json nesting semantics. Do not reimplement them in ad hoc scripts.
+
+## Verify every result
+
+Parse the JSON `AutomationResult`, not console prose alone:
+
+- continue only when `Succeeded=true`;
+- use `Diagnostics[].Code` for decisions and show `Message` to the user;
+- require `Persisted=true` when the requested operation should write;
+- inspect `OutputFiles` for generated artifacts;
+- verify postconditions with `project inspect`, `workbook inspect`, `data read`, or `project validate` as appropriate.
+- Deleting rows or shifting columns in a workbook with formula/reference dependencies requires locally installed Excel. The CLI edits an isolated temporary copy with Excel and recalculates before atomic replacement (`AccessKind=Interop`); without Excel it fails with `TABLE_FORMULA_EXCEL_REQUIRED`. Verify recalculated formula results, not merely unchanged formula text or caches. Regenerate previously misaligned candidates from the pre-edit backup.
+
+Do not blindly retry `InvalidArguments`, `NotFound`, `ValidationFailed`, bridge-unavailable, or workbook-conflict failures. Re-inspect the relevant state and correct the cause.
+
+## Handoff
+
+Report the commands used, whether they persisted, validation evidence, output files, and any files intentionally left untouched. Keep user-owned dirty files out of unrelated commits.
