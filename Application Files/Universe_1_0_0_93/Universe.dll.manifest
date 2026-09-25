@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <asmv1:assembly xsi:schemaLocation="urn:schemas-microsoft-com:asm.v1 assembly.adaptive.xsd" manifestVersion="1.0" xmlns:asmv1="urn:schemas-microsoft-com:asm.v1" xmlns="urn:schemas-microsoft-com:asm.v2" xmlns:asmv2="urn:schemas-microsoft-com:asm.v2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:co.v1="urn:schemas-microsoft-com:clickonce.v1" xmlns:asmv3="urn:schemas-microsoft-com:asm.v3" xmlns:dsig="http://www.w3.org/2000/09/xmldsig#" xmlns:co.v2="urn:schemas-microsoft-com:clickonce.v2">
-  <asmv1:assemblyIdentity name="Universe.dll" version="1.0.0.92" publicKeyToken="a1e43b11c0678952" language="neutral" processorArchitecture="msil" type="win32" />
+  <asmv1:assemblyIdentity name="Universe.dll" version="1.0.0.93" publicKeyToken="a1e43b11c0678952" language="neutral" processorArchitecture="msil" type="win32" />
   <description xmlns="urn:schemas-microsoft-com:asm.v1">Universe</description>
   <application />
   <entryPoint>
@@ -176,19 +176,19 @@
           <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
         </dsig:Transforms>
         <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-        <dsig:DigestValue>GIDOqmazocqBVCCkT5yQMQ0JAlKIlxf25y7XcEx5aps=</dsig:DigestValue>
+        <dsig:DigestValue>LM16aGIL1A4SMIR/1JEh+QhB39Iiywej26carRvv1b4=</dsig:DigestValue>
       </hash>
     </dependentAssembly>
   </dependency>
   <dependency>
-    <dependentAssembly dependencyType="install" allowDelayedBinding="true" codebase="CheckOutAddIn.Excel.dll" size="13824">
+    <dependentAssembly dependencyType="install" allowDelayedBinding="true" codebase="CheckOutAddIn.Excel.dll" size="16384">
       <assemblyIdentity name="CheckOutAddIn.Excel" version="1.0.0.0" language="neutral" processorArchitecture="msil" />
       <hash>
         <dsig:Transforms>
           <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
         </dsig:Transforms>
         <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-        <dsig:DigestValue>g3kUp9sunfEFPAYjWMTKAmDwr/IJHrw2ObevYVt6xyk=</dsig:DigestValue>
+        <dsig:DigestValue>67wbOcQtCKNPaLCYi8jhfvv/xNVpm3NuGijWOhGRi6A=</dsig:DigestValue>
       </hash>
     </dependentAssembly>
   </dependency>
@@ -313,14 +313,14 @@
     </dependentAssembly>
   </dependency>
   <dependency>
-    <dependentAssembly dependencyType="install" allowDelayedBinding="true" codebase="Universe.dll" size="1746944">
+    <dependentAssembly dependencyType="install" allowDelayedBinding="true" codebase="Universe.dll" size="1747456">
       <assemblyIdentity name="Universe" version="1.0.0.0" language="neutral" processorArchitecture="msil" />
       <hash>
         <dsig:Transforms>
           <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
         </dsig:Transforms>
         <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-        <dsig:DigestValue>OxGQH/uwy6dxAiDHHWoiYTcWJoB39JSZHRTqr7sYVME=</dsig:DigestValue>
+        <dsig:DigestValue>t89UjB0zOjr4fZ86cukCPyDgWExP9Vwn+JgmvK7pH1o=</dsig:DigestValue>
       </hash>
     </dependentAssembly>
   </dependency>
@@ -342,13 +342,13 @@
       <dsig:DigestValue>Je98/IVWZoS+jqlRsG1MIIC5A9zdGtA3L6Euf3K1Fi8=</dsig:DigestValue>
     </hash>
   </file>
-  <file name="Cli\CheckOutAddIn.Automation.dll" size="118272">
+  <file name="Cli\CheckOutAddIn.Automation.dll" size="117760">
     <hash>
       <dsig:Transforms>
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>mC4mhfpo9zH82UPidNOobPvTWYd5vrn77yv1hb1/xTw=</dsig:DigestValue>
+      <dsig:DigestValue>0AoWPJ0InR3ztuCAbv8O9Fu+7PNCQm8MImrD9QxdsH8=</dsig:DigestValue>
     </hash>
   </file>
   <file name="Cli\CheckOutAddIn.Automation.pdb" size="34204">
@@ -357,7 +357,7 @@
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>nd6Z8Q3cRGW+RDJ8Lds5lxn23KXf9JHlanwFZPuvvd4=</dsig:DigestValue>
+      <dsig:DigestValue>yI4GvoTVF/MjDuxTyLaCEaQtP5iHrz6vzuotI3A3Gq8=</dsig:DigestValue>
     </hash>
   </file>
   <file name="Cli\CheckOutAddIn.Data.dll" size="20992">
@@ -366,7 +366,7 @@
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>9RQUA96p482C1VxEc+YzMwTUATHzXW86Nivpf0fmkcQ=</dsig:DigestValue>
+      <dsig:DigestValue>PgX4aK0f4oJAUTwj1zTnVIDluKHXtzbAmlstVpnpO6Q=</dsig:DigestValue>
     </hash>
   </file>
   <file name="Cli\CheckOutAddIn.Data.pdb" size="6756">
@@ -375,25 +375,25 @@
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>4ptdcq69zLe5dDjGUxcMvcbTHcAWt+jki9OllJ9gir4=</dsig:DigestValue>
+      <dsig:DigestValue>JOjsvZjcoA41Dsqc9tqrUevecD7tocWa7ATpzxj2Czw=</dsig:DigestValue>
     </hash>
   </file>
-  <file name="Cli\CheckOutAddIn.Excel.dll" size="13824">
+  <file name="Cli\CheckOutAddIn.Excel.dll" size="16384">
     <hash>
       <dsig:Transforms>
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>IoYJ4IaQnTL9MfBimhPh5JVo0l+qAVu26KlUPgVqd/o=</dsig:DigestValue>
+      <dsig:DigestValue>J3GnSmC/imT1H6kCU58ptHiJNxWxpO6vLm1HNo2wfrA=</dsig:DigestValue>
     </hash>
   </file>
-  <file name="Cli\CheckOutAddIn.Excel.pdb" size="5128">
+  <file name="Cli\CheckOutAddIn.Excel.pdb" size="5824">
     <hash>
       <dsig:Transforms>
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>aKNR5zw/tNQQx7Z5iGiwO94LkoSG6rsCjujBuFMX8SY=</dsig:DigestValue>
+      <dsig:DigestValue>JP9zUrTF8VdilFZa+ZYVLs6uzn6VYVdY3oiFZcUy40o=</dsig:DigestValue>
     </hash>
   </file>
   <file name="Cli\CheckOutAddIn.ProjectModel.dll" size="12800">
@@ -909,13 +909,13 @@
       <dsig:DigestValue>XptBd9oawxXhFzMlRuC77tS+uwqXOQzOBI4+POXWATU=</dsig:DigestValue>
     </hash>
   </file>
-  <file name="Cli\Universe.dll" size="1746944">
+  <file name="Cli\Universe.dll" size="1747456">
     <hash>
       <dsig:Transforms>
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>L6cAwbr1eiiZCqaM0tsfxzlbCiEi3j0TVCdN7q3nLSw=</dsig:DigestValue>
+      <dsig:DigestValue>Ywnse2Wf0ZMbu+szMpfcxJUaZXtM+/xWZrtTDO1ERt8=</dsig:DigestValue>
     </hash>
   </file>
   <file name="Cli\Universe.dll.config" size="1176">
@@ -933,7 +933,7 @@
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>17gwZlmyqMqQ9zWHia8BeasFPkhBZX0VQ9APiK9GSOs=</dsig:DigestValue>
+      <dsig:DigestValue>8PEizGke0IbftZ2Oq1MdNstu53gAhOL2R/QBsKd5RgU=</dsig:DigestValue>
     </hash>
   </file>
   <file name="Cli\Universe.pdb" size="2133504">
@@ -942,7 +942,7 @@
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>BIbVfKNsAkKP4upmwkWdNKPhu3sFABnq8SOGPW7UW7Q=</dsig:DigestValue>
+      <dsig:DigestValue>uQ5NWt08yqPt4Q7G3ggDb6oNu7IECAk5uf5IhfnZ0mw=</dsig:DigestValue>
     </hash>
   </file>
   <file name="Cli\Universe.vsto" size="5548">
@@ -951,7 +951,7 @@
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>KY+YQrAvGTIQIE2/6vZP9N48ZtJicsAMo/M117LZn5g=</dsig:DigestValue>
+      <dsig:DigestValue>700yzmnLNyAQPR4sNN4GBg4bGP1nrmzaVijECNw2LrI=</dsig:DigestValue>
     </hash>
   </file>
   <file name="Cli\checkout.exe" size="114688">
@@ -960,7 +960,7 @@
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>4RrlwyBgs4zqPayjMn3eFWFEjae/MTRG1vxqHBdLcog=</dsig:DigestValue>
+      <dsig:DigestValue>61HEUtms4VKy4kORyaUIAI9E5fGlnLDG+5QYJJy8UaA=</dsig:DigestValue>
     </hash>
   </file>
   <file name="Cli\checkout.exe.config" size="176">
@@ -978,7 +978,7 @@
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>4u7gOe6DFt3cu1CG+rhIS6ELc9DNPiGqZNUAVZLRap0=</dsig:DigestValue>
+      <dsig:DigestValue>ITY1fViHWLLSjaPnyXOjRr5pCLSfNSEtMVnji8xu+4w=</dsig:DigestValue>
     </hash>
   </file>
   <file name="CodexSkill\checkout-addin\SKILL.md" size="4667">
@@ -1418,4 +1418,4 @@
       </vstov4:customizations>
     </vstav3:application>
   </vstav3:addIn>
-<publisherIdentity name="CN=IT0100064MAO\karmas" issuerKeyHash="3af3e907766bfbf7a93ce45898668604cc441bb6" /><Signature Id="StrongNameSignature" xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha256" /><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /><Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" /><DigestValue>ESf1rDmZyMBH+fq89yS5v4HA7Whkc8mDAdi9B/0XehQ=</DigestValue></Reference></SignedInfo><SignatureValue>lE3us/XfgkVnwECL4Q9LpCxpzx+vCXSec58164mEDvoLUj2W+cSP4xKKNf3rkGEN6dmR4weZUrIIP+tWV5lug51nipi8QmmpqYR//4kzXkidhgw/lfzDFVKgj7CZ6VX1Upt+9raZlMxSHBh1xPUEoSAqKK2iYNMcrcLnTs3jasM=</SignatureValue><KeyInfo Id="StrongNameKeyInfo"><KeyValue><RSAKeyValue><Modulus>3BB+gPCFRi8zU5T1WCTWhIleRS57mtTg5Pn/oSPDFCS4LZbwkEmj5iww45ZQOn/J5yrGsIKIPy/c2xPTMAChGLswCpv2HtHjgHYoDDkCte+JFfMGJ/l2du+6Bza60e0wHQY/PNcORI7sbkHpCtRM+X+PB/bbXQM8ym9iFsEsz3k=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue><msrel:RelData xmlns:msrel="http://schemas.microsoft.com/windows/rel/2005/reldata"><r:license xmlns:r="urn:mpeg:mpeg21:2003:01-REL-R-NS" xmlns:as="http://schemas.microsoft.com/windows/pki/2005/Authenticode"><r:grant><as:ManifestInformation Hash="147a17fd07bdd80183c9736468edc081bfb924f7bcfaf947c0c89939acf52711" Description="" Url=""><as:assemblyIdentity name="Universe.dll" version="1.0.0.92" publicKeyToken="a1e43b11c0678952" language="neutral" processorArchitecture="msil" type="win32" /></as:ManifestInformation><as:SignedBy /><as:AuthenticodePublisher><as:X509SubjectName>CN=IT0100064MAO\karmas</as:X509SubjectName></as:AuthenticodePublisher></r:grant><r:issuer><Signature Id="AuthenticodeSignature" xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha256" /><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /><Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" /><DigestValue>IUyjNpBKSCM+2OdZQAgcHMrzJhr44j5F9nNm2qkm5I0=</DigestValue></Reference></SignedInfo><SignatureValue>mrQgEE1QifxcpJtATsnLS6ntU131z40+Um9IXSMk6ai7CSYAF4iOTfoRJKNESrYnJXfQoU0/bHXKtrtZa95fDPXuYxq3K/rGOzLusMPpxZILU9Ims+vqlCWyMPPJZFi1PnwbWoI2a37E6ljo7KCadWcf1KRS1FQ1nha4JK9zf/M=</SignatureValue><KeyInfo><KeyValue><RSAKeyValue><Modulus>3BB+gPCFRi8zU5T1WCTWhIleRS57mtTg5Pn/oSPDFCS4LZbwkEmj5iww45ZQOn/J5yrGsIKIPy/c2xPTMAChGLswCpv2HtHjgHYoDDkCte+JFfMGJ/l2du+6Bza60e0wHQY/PNcORI7sbkHpCtRM+X+PB/bbXQM8ym9iFsEsz3k=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue><X509Data><X509Certificate>MIIB5TCCAU6gAwIBAgIQWIBfS42UELBMEnkyS+psyDANBgkqhkiG9w0BAQsFADAxMS8wLQYDVQQDHiYASQBUADAAMQAwADAAMAA2ADQATQBBAE8AXABrAGEAcgBtAGEAczAeFw0yNjA1MjYwMjU4NTVaFw0yNzA1MjYwODU4NTVaMDExLzAtBgNVBAMeJgBJAFQAMAAxADAAMAAwADYANABNAEEATwBcAGsAYQByAG0AYQBzMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDcEH6A8IVGLzNTlPVYJNaEiV5FLnua1ODk+f+hI8MUJLgtlvCQSaPmLDDjllA6f8nnKsawgog/L9zbE9MwAKEYuzAKm/Ye0eOAdigMOQK174kV8wYn+XZ277oHNrrR7TAdBj881w5EjuxuQekK1Ez5f48H9ttdAzzKb2IWwSzPeQIDAQABMA0GCSqGSIb3DQEBCwUAA4GBAH8EhVAi/qoZ6A8kvA7EwarkRV4XdG8K1BHmUa1L4Uz7CbImR4OtpIDJA2EOZ/FlZziiVMsMiAcc43P8c42BYweewIHJNprQgMbqCxyCeN7++bBoXpC3MY9pb92syjoQYFfWbG5iF0FpNm652AeLWaWxN0SMf0NNvtfS0CzkQSh4</X509Certificate></X509Data></KeyInfo></Signature></r:issuer></r:license></msrel:RelData></KeyInfo></Signature></asmv1:assembly>
+<publisherIdentity name="CN=IT0100064MAO\karmas" issuerKeyHash="3af3e907766bfbf7a93ce45898668604cc441bb6" /><Signature Id="StrongNameSignature" xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha256" /><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /><Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" /><DigestValue>8+amowRpByHNtfPNvc5phT6BDR1196uuW1RUFZebbSI=</DigestValue></Reference></SignedInfo><SignatureValue>oEIjjaiGIZLHFG1UNvxBuylKkXZO3oetfKvyo8V48tW7gOWPkY+kBAvhDQx7ErybTHft0MV4vrga3CLZhZ8jV6ZaL3w4n0msZuOyLuyBhIqorZVUjAhk7P/tSo7cWS/ekB0N9CRfA7oIT98+vOhs4fRg3Q8PtgBdk9oi2QHrF7g=</SignatureValue><KeyInfo Id="StrongNameKeyInfo"><KeyValue><RSAKeyValue><Modulus>3BB+gPCFRi8zU5T1WCTWhIleRS57mtTg5Pn/oSPDFCS4LZbwkEmj5iww45ZQOn/J5yrGsIKIPy/c2xPTMAChGLswCpv2HtHjgHYoDDkCte+JFfMGJ/l2du+6Bza60e0wHQY/PNcORI7sbkHpCtRM+X+PB/bbXQM8ym9iFsEsz3k=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue><msrel:RelData xmlns:msrel="http://schemas.microsoft.com/windows/rel/2005/reldata"><r:license xmlns:r="urn:mpeg:mpeg21:2003:01-REL-R-NS" xmlns:as="http://schemas.microsoft.com/windows/pki/2005/Authenticode"><r:grant><as:ManifestInformation Hash="226d9b971554545baeabf7751d0d813e8569cebdcdf3b5cd21076904a3a6e6f3" Description="" Url=""><as:assemblyIdentity name="Universe.dll" version="1.0.0.93" publicKeyToken="a1e43b11c0678952" language="neutral" processorArchitecture="msil" type="win32" /></as:ManifestInformation><as:SignedBy /><as:AuthenticodePublisher><as:X509SubjectName>CN=IT0100064MAO\karmas</as:X509SubjectName></as:AuthenticodePublisher></r:grant><r:issuer><Signature Id="AuthenticodeSignature" xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha256" /><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature" /><Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#" /></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" /><DigestValue>m09RvtCbNh+Grd+WK8TLri3g/PbPMmFXbw336ANnK5w=</DigestValue></Reference></SignedInfo><SignatureValue>hAqwle9lYP4UIDUcmpTcpRIYR7mH/WGtB7GKTmbEz7UmzsVDAbVEsBI9QeB0caxALbnAMnxd3Zvl14D6xO/XfImLK2pIFTpu8xUZxRk0SZZjsrVJ3pUlaFwGHbo/K3drzfEVAF8EWXfROQ4blRKlexQu2LFY6H4DiUxv3++Nr1g=</SignatureValue><KeyInfo><KeyValue><RSAKeyValue><Modulus>3BB+gPCFRi8zU5T1WCTWhIleRS57mtTg5Pn/oSPDFCS4LZbwkEmj5iww45ZQOn/J5yrGsIKIPy/c2xPTMAChGLswCpv2HtHjgHYoDDkCte+JFfMGJ/l2du+6Bza60e0wHQY/PNcORI7sbkHpCtRM+X+PB/bbXQM8ym9iFsEsz3k=</Modulus><Exponent>AQAB</Exponent></RSAKeyValue></KeyValue><X509Data><X509Certificate>MIIB5TCCAU6gAwIBAgIQWIBfS42UELBMEnkyS+psyDANBgkqhkiG9w0BAQsFADAxMS8wLQYDVQQDHiYASQBUADAAMQAwADAAMAA2ADQATQBBAE8AXABrAGEAcgBtAGEAczAeFw0yNjA1MjYwMjU4NTVaFw0yNzA1MjYwODU4NTVaMDExLzAtBgNVBAMeJgBJAFQAMAAxADAAMAAwADYANABNAEEATwBcAGsAYQByAG0AYQBzMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDcEH6A8IVGLzNTlPVYJNaEiV5FLnua1ODk+f+hI8MUJLgtlvCQSaPmLDDjllA6f8nnKsawgog/L9zbE9MwAKEYuzAKm/Ye0eOAdigMOQK174kV8wYn+XZ277oHNrrR7TAdBj881w5EjuxuQekK1Ez5f48H9ttdAzzKb2IWwSzPeQIDAQABMA0GCSqGSIb3DQEBCwUAA4GBAH8EhVAi/qoZ6A8kvA7EwarkRV4XdG8K1BHmUa1L4Uz7CbImR4OtpIDJA2EOZ/FlZziiVMsMiAcc43P8c42BYweewIHJNprQgMbqCxyCeN7++bBoXpC3MY9pb92syjoQYFfWbG5iF0FpNm652AeLWaWxN0SMf0NNvtfS0CzkQSh4</X509Certificate></X509Data></KeyInfo></Signature></r:issuer></r:license></msrel:RelData></KeyInfo></Signature></asmv1:assembly>
