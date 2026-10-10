@@ -1,4 +1,4 @@
-﻿using Microsoft.Office.Interop.Excel;
+using Microsoft.Office.Interop.Excel;
 using System.Collections.Generic;
 using System.Windows.Forms;
 using Excel = Microsoft.Office.Interop.Excel;
@@ -62,7 +62,11 @@ namespace CheckOutAddIn
                 m_Lifecycle.StartStep(() => m_WorkbookOpen = new WorkbookOpenApplicationService(
                     () => ProjectController.ActiveProject,
                     project => project.Data.GetDataKeyListInAllWorkBooks(),
-                    key => MapDataInfos.GetInstance().ReadOnly(key).Format(), ReportWorkbookFormatFailure));
+                    key => {
+                        var data = ExportStageGuard.Run("WORKBOOK_FORMAT_LOAD_FAILED", ExportDiagnosticStage.DataRead,
+                            () => MapDataInfos.GetInstance().ReadOnly(key), key);
+                        data.Format();
+                    }, ReportWorkbookFormatFailure));
                 m_Lifecycle.StartStep(() =>
                 {
                     var menuHost = new VstoRangeContextMenuHost();
@@ -230,7 +234,8 @@ namespace CheckOutAddIn
                     () => m_WorkbookChanges.WorkbookAccessChanged(Wb.FullName), ShowActiveTaskPane,
                     ProjectSheets.ProjectSheetList.Keys, Wb.Exists_Worksheet,
                     name => Wb.Get_Worksheet(name).Delete(), Wb.Save,
-                    () => m_CommentFormat.FormatWorkbook(Wb)));
+                    () => m_CommentFormat.FormatWorkbook(Wb),
+                    project => project.Data.GetDataKeyListInWorkBook(Wb)));
         }
 
         private void AddSelectionMenu(Excel.Range selection)
@@ -247,8 +252,12 @@ namespace CheckOutAddIn
         private static void ReportWorkbookFormatFailure(string key, Exception exception)
         {
             AutomationDiagnostic diagnostic = ExportDiagnosticClassifier.Create(
-                "WORKBOOK_DATA_LOAD_FAILED", ExportDiagnosticStage.DataRead, exception, key);
+                (exception as ExportStageException)?.DiagnosticCode ?? "WORKBOOK_FORMAT_FAILED",
+                ExportDiagnosticStage.DataRead, exception, key);
             ExportDiagnosticLocationResolver.Enrich(diagnostic);
+            diagnostic.Message = "工作簿自动格式化失败：" + diagnostic.Message +
+                "（HRESULT: 0x" + exception.GetBaseException().HResult.ToString("X8") + "）";
+            ExportMemoryTrace.RecordWorkbookFormatFailure(exception, diagnostic);
             LogController.WriteExportDiagnostic(diagnostic, true);
         }
 
