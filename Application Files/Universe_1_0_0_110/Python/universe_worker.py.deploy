@@ -1,0 +1,188 @@
+import json
+import sys
+import traceback
+import uuid
+import base64
+import os
+import datetime
+
+_session_directory = sys.argv[2] if len(sys.argv) > 2 and os.path.isdir(sys.argv[2]) else None
+
+_protocol_out = sys.stdout
+try: sys.stdin.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError): pass
+try: sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError): pass
+_protocol_in = sys.stdin
+sys.stdout = sys.stderr
+
+def _send(message):
+    text = json.dumps(message, ensure_ascii=True, separators=(",", ":"))
+    if _session_directory and len(text) > 512 * 1024:
+        if len(text.encode("utf-8")) > 128 * 1024 * 1024: raise UniverseApiError("PYTHON_PAYLOAD_TOO_LARGE", "单条消息超过128MB，请选择列或分页")
+        name = "msg-" + uuid.uuid4().hex + ".json"
+        with open(os.path.join(_session_directory, name), "w", encoding="utf-8") as stream: stream.write(text)
+        text = json.dumps({"type":"payload", "file":name})
+    _protocol_out.write(text + "\n")
+    _protocol_out.flush()
+
+def _encode(value):
+    if value is None or isinstance(value, (str, int, float, bool)): return value
+    if isinstance(value, datetime.datetime):
+        if value.tzinfo is not None: raise UniverseApiError("PYTHON_VALUE_TYPE", "日期时间必须明确转换为目标表需要的无时区文本")
+        return value.isoformat(sep=" ")
+    if isinstance(value, datetime.date): return value.isoformat()
+    if isinstance(value, (list, tuple, set)): return [_encode(item) for item in value]
+    if isinstance(value, dict): return {str(key): _encode(item) for key, item in value.items()}
+    return str(value)
+
+def _api(operation, arguments=None):
+    request_id = uuid.uuid4().hex
+    message = {"type":"rpc", "id":request_id, "operation":operation, "arguments":_encode(arguments or {})}
+    _send(message)
+    response_line = _protocol_in.readline()
+    if not response_line: raise RuntimeError("VSTO API response stream closed")
+    try: response = json.loads(response_line.lstrip("\ufeff"))
+    except json.JSONDecodeError as exception: raise RuntimeError("Invalid VSTO API response: " + repr(response_line)) from exception
+    if response.get("type") == "payload":
+        name = response.get("file", "")
+        if not _session_directory or name != os.path.basename(name) or not name.startswith("msg-") or not name.endswith(".json"):
+            raise UniverseApiError("PYTHON_PAYLOAD_PATH", "消息文件不在本次调用目录")
+        path = os.path.join(_session_directory, name)
+        if os.path.getsize(path) > 128 * 1024 * 1024: raise UniverseApiError("PYTHON_PAYLOAD_TOO_LARGE", "消息超过128MB")
+        try:
+            with open(path, "r", encoding="utf-8-sig") as stream: response = json.load(stream)
+        finally: os.remove(path)
+    if response.get("type") != "rpc-result" or response.get("id") != request_id: raise RuntimeError("Invalid VSTO RPC response")
+    if not response.get("ok"): raise UniverseApiError(response.get("code", "PYTHON_API_EXECUTION_FAILED"), response.get("message", "Universe API failed"))
+    return response.get("value")
+
+class UniverseApiError(RuntimeError):
+    def __init__(self, code, message): super().__init__(message); self.code = code
+
+class UniverseMethodNotFound(RuntimeError):
+    pass
+
+class UniverseWriteError(UniverseApiError):
+    def __init__(self, result):
+        super().__init__(result.get("code", "PYTHON_TABLE_WRITE_FAILED"), result.get("message", "写表失败"))
+        self.result = result
+
+class _DataSnapshot:
+    def __init__(self, data, metadata): self._data, self.metadata, self.id = data, metadata, metadata["snapshot_id"]
+    def read(self, *, mode="raw", keys=None, version="", columns=None, offset=0, limit=500):
+        return _api("data.snapshot.page", {"snapshot_id":self.id, "mode":mode, "keys":keys, "version":version, "columns":columns, "offset":offset, "limit":limit})
+    def iter_rows(self, *, mode="raw", keys=None, version="", columns=None, page_size=500):
+        offset = 0
+        while True:
+            page = self.read(mode=mode, keys=keys, version=version, columns=columns, offset=offset, limit=page_size)
+            yield from page["rows"]
+            if page["next_offset"] is None: break
+            offset = page["next_offset"]
+    def copy_rows(self, keys, version="", columns=None, strict=True):
+        wanted, result = list(keys), []
+        for first in range(0, len(wanted), 500):
+            for row in self.iter_rows(mode="effective", keys=wanted[first:first+500], version=version, columns=columns):
+                if strict and row["status"] != "ok":
+                    raise UniverseApiError("PYTHON_ROW_" + row["status"].upper(), "key=" + str(row["key"]) + ": " + row["status"])
+                result.append(row["values"] if strict else row)
+        return result
+    def is_current(self): return _api("data.snapshot.check", {"snapshot_id":self.id})
+    def append(self, rows, *, save="memory", raise_on_error=True):
+        return self._data.append(self.metadata["name"], rows, snapshot_id=self.id, save=save, raise_on_error=raise_on_error)
+    def close(self): return _api("data.snapshot.close", {"snapshot_id":self.id})
+    def __enter__(self): return self
+    def __exit__(self, *_): self.close()
+
+class _Invocation:
+    def __init__(self, context):
+        self.purpose = context.get("Purpose", "")
+        self.version = context.get("Version", "")
+        self.parameters = list(context.get("Parameters", []))
+        self.is_headless = bool(context.get("IsHeadless", False))
+
+class _ProjectApi:
+    def __init__(self, context): self.name, self.root_path = context.get("ProjectName"), context.get("ProjectRoot")
+    def info(self): return _api("project.info")
+    def versions(self): return _api("project.versions")
+    def has_version(self, version): return version in self.versions()
+    def resolve(self, path): return _api("project.resolve", {"path":path})
+
+class _ConfigApi:
+    def system(self, key, version=None): return _api("config.system", {"key":key, "version":version})
+    def custom(self, key, column, version=None): return _api("config.custom", {"key":key, "column":column, "version":version})
+
+class _DataApi:
+    def exists(self, name): return _api("data.exists", {"name":name})
+    def columns(self, name, version=None): return _api("data.columns", {"name":name, "version":version})
+    def keys(self, name, version=None): return _api("data.keys", {"name":name, "version":version})
+    def get(self, name, key, column, version=None): return _api("data.get", {"name":name, "key":key, "column":column, "version":version})
+    def read(self, name, version=None): return _api("data.read", {"name":name, "version":version})
+    def snapshot(self, name, *, columns=None, keys=None, offset=0, limit=None):
+        return _DataSnapshot(self, _api("data.snapshot.open", {"name":name, "columns":columns, "keys":keys, "offset":offset, "limit":limit}))
+    def append(self, name, rows, *, snapshot_id, save="memory", raise_on_error=True):
+        result = _api("data.append", {"name":name, "snapshot_id":snapshot_id, "rows":list(rows), "save":save})
+        if not result["succeeded"] and raise_on_error: raise UniverseWriteError(result)
+        return result
+    def append_many(self, tables):
+        pending, results = list(tables), []
+        for index, table in enumerate(pending):
+            result = self.append(table["name"], table["rows"], snapshot_id=table["snapshot_id"], save=table.get("save", "memory"), raise_on_error=False)
+            results.append(result)
+            if not result["succeeded"]:
+                return {"succeeded":False, "tables":results, "not_attempted":[item["name"] for item in pending[index+1:]]}
+        return {"succeeded":True, "tables":results, "not_attempted":[]}
+    def writes(self): return _api("data.writes")
+    def metrics(self): return _api("data.metrics")
+
+class _LogApi:
+    def _write(self, level, message): return _api("log.write", {"level":level, "message":str(message)})
+    def debug(self, message): return self._write("debug", message)
+    def info(self, message): return self._write("info", message)
+    def warning(self, message): return self._write("warning", message)
+    def error(self, message): return self._write("error", message)
+
+class _OutputApi:
+    def path(self, path): return _api("output.path", {"path":path})
+    def exists(self, path): return _api("output.exists", {"path":path})
+    def write_text(self, path, content, encoding="utf-8"):
+        if encoding.lower().replace("-", "") != "utf8": raise UniverseApiError("PYTHON_API_ARGUMENT_INVALID", "API 1.0 仅支持 UTF-8 文本输出")
+        return _api("output.write_text", {"path":path, "content":content})
+    def write_json(self, path, value):
+        return self.write_text(path, json.dumps(value, ensure_ascii=False, indent=2))
+    def write_bytes(self, path, content):
+        if not isinstance(content, (bytes, bytearray)): raise UniverseApiError("PYTHON_API_ARGUMENT_INVALID", "二进制输出内容必须是 bytes")
+        return _api("output.write_bytes", {"path":path, "content":base64.b64encode(bytes(content)).decode("ascii")})
+
+class UniverseContext:
+    def __init__(self, context):
+        self.api_version = context.get("ApiVersion", "1.0")
+        if self.api_version not in ("1.0", "1.1"):
+            raise UniverseApiError("PYTHON_API_VERSION_UNSUPPORTED", "不支持 Universe Python API " + str(self.api_version))
+        self.invocation = _Invocation(context)
+        self.project = _ProjectApi(context)
+        self.config = _ConfigApi()
+        self.data = _DataApi()
+        self.log = _LogApi()
+        self.output = _OutputApi()
+
+def main():
+    if len(sys.argv) < 3: raise RuntimeError("Missing CPython worker session arguments")
+    with open(sys.argv[1], "r", encoding="utf-8-sig") as start_file: start = json.load(start_file)
+    scope = {"__name__":"__universe_script__", "__file__":start["scriptPath"]}
+    ctx = UniverseContext(start.get("context", {}))
+    with open(start["scriptPath"], "rb") as stream: exec(compile(stream.read(), start["scriptPath"], "exec"), scope, scope)
+    method = start.get("methodName")
+    if method:
+        if method not in scope or not callable(scope[method]): raise UniverseMethodNotFound("Python method not found: " + method)
+        result = scope[method](ctx, *start.get("parameters", []))
+    else: result = scope.get("result")
+    _send({"type":"result", "ok":True, "value":_encode(result)})
+
+if __name__ == "__main__":
+    try: main()
+    except SyntaxError as exception: _send({"type":"result", "ok":False, "code":"PYTHON_SYNTAX_ERROR", "message":str(exception), "traceback":traceback.format_exc()})
+    except UniverseMethodNotFound as exception: _send({"type":"result", "ok":False, "code":"PYTHON_METHOD_NOT_FOUND", "message":str(exception), "traceback":traceback.format_exc()})
+    except ModuleNotFoundError as exception: _send({"type":"result", "ok":False, "code":"PYTHON_MODULE_NOT_FOUND", "message":str(exception), "traceback":traceback.format_exc()})
+    except UniverseApiError as exception: _send({"type":"result", "ok":False, "code":exception.code, "message":str(exception), "traceback":traceback.format_exc()})
+    except Exception as exception: _send({"type":"result", "ok":False, "code":"PYTHON_EXECUTION_FAILED", "message":str(exception), "traceback":traceback.format_exc()})

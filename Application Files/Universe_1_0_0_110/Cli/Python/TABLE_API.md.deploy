@@ -1,0 +1,137 @@
+# Python 1.1 表快照与批量追加
+
+适用旧 VSTO CheckOutAddIn 的 Python 窗口、配置方法和 `checkout python run`。不恢复旧 .NET 对象注入。API 支持自动卡池、Quest、先锋服配置和卡池检查所需的读写基础能力；真实旧脚本未在开发机提供，四个真实入口的输出等价验收仍需业务机完成。
+
+## 方法
+
+```python
+snapshot = ctx.data.snapshot(name, *, columns=None, keys=None, offset=0, limit=None)
+snapshot.metadata                 # 结构及访问方式
+snapshot.id                       # 本次 Python 调用内的快照标识
+snapshot.read(*, mode="raw", keys=None, version="", columns=None,
+              offset=0, limit=500) # 返回一页
+snapshot.iter_rows(*, mode="raw", keys=None, version="", columns=None,
+                   page_size=500) # 分页迭代，不重读工作簿
+snapshot.copy_rows(keys, version="", columns=None, strict=True)
+snapshot.is_current()             # 冲突检查，可能抛出文件缺失/占用诊断
+snapshot.append(rows, *, save="memory", raise_on_error=True)
+snapshot.close()
+
+ctx.data.append(name, rows, *, snapshot_id, save="memory", raise_on_error=True)
+ctx.data.append_many(tables)       # 顺序逐表提交，首个失败后停止，无自动重试
+ctx.data.writes()                  # 本次调用全部逐表写入收据，包括拒绝
+ctx.data.metrics()                 # source_reads, commits, cache_invalidations
+```
+
+快照可用于 `with`，退出时释放。标识只能在本次脚本调用内使用，不能跨进程保存后重用。
+
+### 表结构与值类型
+
+`metadata` 包含有序 `columns`（name、ordinal、type、nullable）、`loaded_columns`、`physical_row_count`、`loaded_row_count`、`key_column`、`version_column`、`auto_index`、`default_version`、`first_worksheet_row`、`access_kind`、`has_unsaved_changes`、`date_system` 和编码说明。
+
+旧 MapData 的 DataTable 业务列类型为 string。因此本接口明确返回 **字符串或 None**，不推断业务列类型，不把长数字文本改为浮点。数字、布尔和公式缓存按现有 MapData 读取约定转换为字符串；空单元格为 None，空文本仍为 `""`。需要旧 `DBNull.ToString()` 行为的脚本应显式使用 `"" if value is None else value`，不能用 `value or ""` 处理数字输入。
+
+日期原有文本保留文本；Excel 数字日期保持序列值的字符串，`date_system` 为 1900 或 1904。需要 datetime 的脚本应明确转换，不能对任意数字列猜日期。此接口不保证关闭工作簿的历史公式缓存已重算；读取依赖新计算结果时应在正确 Excel 上下文执行。
+
+`disabled_columns` 只列出常见禁用字段的存在情况，不创造额外过滤规则。版本选择、注释、自动索引复用旧 MapDataVersionIndexBuilder；旧实现没有独立禁用列过滤时，字段原样保留。禁用或排除的版本表达式仍由旧版本规则决定。表存在总计行时与旧 ListObject.Range 读取一致，`includes_totals_if_present=true`，原始视图包含该行。
+
+### 原始与有效版本视图
+
+`mode="raw"` 返回物理顺序，包含跨版本重复主键、注释、空行、原版本及禁用值。`keys` 是原始主键的成员过滤，不改变物理顺序，不复制重复请求；找不到的键不会伪造物理行。有效版本的精确缺失结果应使用 `copy_rows`。
+
+`mode="effective"` 复用旧版本索引、平台分组和冲突校验。**version 缺省为 `""`，只取旧规则下的通用行，不隐式改成 meta 或调用版本。** 需要业务版本时传入具体工程版本，如 `"1.0.0.0"`。
+
+`copy_rows(["B", "A", "A"], version)` 按请求顺序返回三份值映射，保留重复请求。`strict=True` 遇到缺失立即抛出带 code 的异常；`strict=False` 返回逐键结果。状态为：
+
+| status | 含义 |
+|---|---|
+| ok | 已找到并加载 |
+| missing | 原表没有该键 |
+| not_effective | 原表有键，但该版本不可用或被旧注释规则排除 |
+| not_loaded | 版本可用，但打开快照时未加载其物理行 |
+
+同一有效版本有歧义返回 `PYTHON_DATA_AMBIGUOUS`，不静默选一条。非法/未知版本有明确诊断。单次请求全部键的原始成员关系不等同于有效版本判断。
+
+原始页结构：
+
+```json
+{"snapshot_id":"...","mode":"raw","offset":0,"total":2,"next_offset":null,
+ "rows":[{"key":"A","status":"ok","physical_index":0,"worksheet_row":2,
+          "values":{"id":"A","版本":"","参数":null}}]}
+```
+
+### 大表读取
+
+打开快照的 `offset/limit` 是**零起始物理数据行范围**；`keys` 可进一步只加载模板键涉及的行。身份索引仍为整表一次读取，用于可靠版本定位和追加冲突检查。`columns` 限制载荷列；未选择列不能在同一快照中临时补读，返回 `PYTHON_COLUMN_NOT_LOADED`。自动索引表的有效键为旧物理索引；快照打开的 keys 仍匹配原始首列值，需要自动索引范围时使用物理 offset/limit。
+
+页 offset/limit 在已加载的结果视图内分页，limit 为 1..1000。分页和重复 copy_rows 不重读工作簿；每次显式 snapshot 则新读一次。扫描占用编号时先选 ID/版本列，找到模板后另开窄行快照。用完及时 close，避免 32 位 Excel 中保留整张大表多份载荷。
+
+大消息通过本次调用的私有临时文件交换，不受原 4 MB 管道帧限制；单条上限 128 MB，超过应缩小列或分页，脚本退出后清理。`source_reads` 统计快照源读取次数，不是 Excel 内部每次 COM 调用数或文件哈希读取次数。
+
+### 当前 Excel 上下文与冲突
+
+插件内目标工作簿已打开时，读取当前 Excel 实例中的未保存内容。未打开时，读取文件；文件缺失与被其他 Excel 实例占用分别诊断，不能悄悄读取旧磁盘值。CLI 的 Python 入口是独立无头上下文；遇到已打开工作簿会拒绝磁盘旧值，应改由插件入口执行。
+
+快照记录工程、配置、表结构及源状态。实时 Excel 用启用事件的工作簿修订号；事件被禁用时拒绝快照。离线使用文件 SHA-256，并在写入前及原子替换前再核验。
+
+实时冲突粒度保守地覆盖**整个工作簿**：同书另一表的修改也使旧快照失效。多表流程宜按“打开当前目标快照→组织该表全部行→提交→关闭快照”顺序执行。`append_many` 不会绕过已经失效的同书快照。
+
+### 尾部追加与保存
+
+`rows` 是列名映射的列表。只追加，不按 ID 覆盖；不替换生成的版本值。未知列、嵌套对象等错误在写入前拒绝。未提供的目标列填 null，与旧 AddRows 的全宽数组语义一致，不能依赖 Excel 默认值回填遗漏字段。
+
+允许值：None、字符串、有限数字、布尔。超过 2^53-1 的整数需作为字符串，避免 Excel 精度丢失；逗号 ID 列表及长数字文本原样按文本写入。Python 的无时区 datetime/date 编为 ISO 文本；有时区日期须先明确转换。文本以 `=` 开头也作为字面值，不作为公式执行。
+
+| 方式 | 行为 |
+|---|---|
+| 打开工作簿 + memory（默认） | 只改当前 Excel 内存；applied=true、persisted=false，不保存其他编辑 |
+| 打开工作簿 + file | 仅原工作簿无未保存修改时允许；统一重算、保存；有无关未保存修改则拒绝 |
+| 关闭工作簿 + file | 复用 table batch 临时副本、必要的 Excel 重算和原子替换保护；成功 persisted=true |
+| 关闭工作簿 + memory | 拒绝，不会暗中打开再保存 |
+
+同表一次提交全部新增行；内部只扩展和写新增范围，按列类型批量赋值，统一重算及保存，不逐格重新读取整表。一次提交后只按表失效宿主缓存一次，下次读取按需刷新。过滤清除沿用现有写表策略。
+
+快照一旦进入提交阶段即被消耗，包括底层提交失败；禁止自动重放。进入提交前的参数/保存模式拒绝不会消耗它。空 rows 是无写入成功，applied=false、persisted=false。
+
+收据主要字段：`name/snapshot_id/workbook/worksheet/table`、`succeeded`、`applied`、`appended_rows`、`persisted`、`save`、`access_kind`、`code/message/diagnostics`、`stage_duration_milliseconds`、`operation_counts`。提交中异常若无法确认状态，返回 `state_unknown=true, applied=null` 或 `persistence_unknown=true`，必须先核查，不自动重试。
+
+打开工作簿的异常会尝试移除本次新增区域；回滚失败有明确诊断。此模式不宣称能回滚 Excel 中任意外部副作用。跨表不提供整体事务；`append_many` 返回 `tables` 和 `not_attempted`，此前成功表保持成功。
+
+CLI `python run` 的顶层 Succeeded 表示脚本执行状态；逐表保存以 **PythonTableWrites** 中各收据为准，不能用顶层 Persisted 或脚本正常返回推断全部表已保存。脚本出错时，已完成的表收据也保留在 PythonTableWrites。
+
+## 批量示例
+
+```python
+def summonGroupAutoSetting(ctx, target_version, write_groups, write_heroes, write_drops):
+    # 这里只展示契约；真实生成规则仍由旧脚本适配，不能替换为示例算法。
+    flags = [write_groups, write_heroes, write_drops]
+    targets = ["抽卡组", "英雄库", "掉落英雄组"]
+    results = []
+    for name, flag in zip(targets, flags):
+        if flag != "1":
+            continue
+        with ctx.data.snapshot(name) as snapshot:
+            occupied = list(snapshot.iter_rows(mode="raw"))  # Python 内存扫描/稳定去重
+            templates = snapshot.copy_rows(["模板ID"], version=target_version)
+            rows = build_rows_in_python(name, templates, occupied, target_version)
+            results.append(snapshot.append(rows, save="memory"))
+    return results
+
+def CheckSummon(ctx, target_version):
+    with ctx.data.snapshot("抽卡组", columns=["编号", "版本"]) as snapshot:
+        return list(snapshot.iter_rows(mode="raw"))  # 只读，不调用 append
+```
+
+旧函数名、参数顺序、三个开关由脚本保留；`build_rows_in_python` 为适配者自己的业务函数。本接口不替换正则筛选、行复制和编号生成算法。`AutoQuest`、`createTestServerSummonGroup` 采用相同契约。
+
+```python
+with ctx.data.snapshot("英雄库", columns=["编号", "版本"]) as snapshot:
+    receipt = ctx.data.append("英雄库", new_rows,
+        snapshot_id=snapshot.id, save="file")  # 仅隔离副本验收时使用
+```
+
+## 开发回归
+
+`MapData.Tests --python-tables` 覆盖原始行、旧版本规则/自动索引对照、重复请求、空值、类型、冲突、保存模式、部分失败和大消息。`ScenarioTests --case python-table-contract --keep-artifacts` 在独立真实 Excel/VSTO 副本验证未保存读取、内存追加、拒绝保存无关编辑、禁止重放及保存后离线回读。`Test-PythonTableApi.ps1` 复验关闭工作簿 CLI 路径。
+
+这些是接口与合成回归，不代表四个真实旧业务入口、三个卡池开关及真实生成行顺序已经完成验收。业务机仍须用旧输出对照 ID、版本、日期、英雄/奖励列表和全部未开启表。

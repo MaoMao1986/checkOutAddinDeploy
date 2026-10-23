@@ -1,0 +1,33 @@
+# Python 1.1 接口隔离回归记录
+
+日期：2026-10-23。产品目标：旧 CheckOutAddIn VSTO 主线。接口和示例见 [TABLE_API.md](TABLE_API.md)。
+
+| 验证 | 结果 |
+|---|---|
+| MapData、导出及 Python 完整回归 | 403/403 |
+| 自动化回归（含写前及替换前快照冲突） | 61/61 |
+| 新 Python 表接口聚焦回归 | 10/10，已计入完整回归 |
+| 真实 VSTO Python 表接口场景 | 10 步通过 |
+| 既有 VSTO Python 窗口、API、异常和超时 | 14 步通过 |
+| 关闭工作簿 CLI 类型及保存回读 | 通过 |
+| 已提交表后脚本报错的部分完成收据 | 通过 |
+
+真实 VSTO 场景验证了当前未保存值、重复请求键、内存追加、磁盘 SHA 不变、拒绝保存无关编辑、禁止重放同一快照、宿主缓存更新和保存后关闭回读。CLI 验证逗号列表、长数字文本、字面公式文本、日期、布尔、null，以及原有行全部映射保持一致。
+
+七万行 × 56 列合成表一次追加 1056 行：指定列及模板读取约 **4.17 秒**，追加并保存约 **10.49 秒**；包括再次回读的 CLI Python 调用共 **19.28 秒**。逻辑计数为 source_reads=2、commits=1、cache_invalidations=1，代表初次快照及保存后回读，不代表底层文件哈希或 COM 调用次数。该结果仅代表本机合成样本，不推断业务机真实耗时。
+
+大表输入由既有 MixedNativeRegression 生成。只在新副本中取消其总计行，因为该样本的计数总计等于最后一个 ID；旧 MapData 将该总计行视为数据并拒绝重复 ID，这一规则保持不变。原始合成工作簿及场景 Source 均通过未变校验。
+
+新增读取使用流式坐标扫描，只实例化必要身份列和请求载荷的单元格；同样本优化前窄列快照读取约 14.86 秒，优化后约 4.17 秒。分页、copy_rows 重用快照，不再读源表。
+
+本机没有 Activity_autoSummon.py、Activity_autoQuest.py、Activity_autorun.py 及业务验收输入。以上不代表四个真实入口、三个卡池开关、旧新业务输出顺序和 ID 等价已经通过；这些仍需业务机在隔离副本中完成。未执行正式业务生成。
+
+可重复入口：
+
+```powershell
+CheckOutAddIn.MapData.Tests.exe --python-tables
+CheckOutAddIn.ScenarioTests.exe --case python-table-contract --keep-artifacts
+CheckOutAddIn.ScenarioTests.exe --case cpython-vsto-runtime --keep-artifacts
+.\Test-PythonTableApi.ps1 -Cli <测试CLI绝对路径> -OutputDirectory <新目录>
+# 可附加 -LargeWorkbook <MixedNativeRegression生成的source.xlsx>，仅复制后测试。
+```

@@ -1,0 +1,35 @@
+# CPython 运行时
+
+插件通过独立 CPython 进程执行工程脚本，不再加载 IronPython 或 DLR。
+
+CPython 可执行文件按以下顺序解析：
+
+1. 进程环境变量 `UNIVERSE_PYTHON_EXE` 指定的绝对路径。
+2. 插件目录下 `Runtime/Python/python.exe`（正式部署推荐）。
+3. 插件目录下 `Python/python.exe`。
+4. 当前进程 `PATH` 中的 `python.exe`。
+
+正式发布前在仓库根目录运行 `Prepare-CpythonRuntime.ps1`。Python 版本、官方压缩包 SHA-256、依赖清单 SHA-256 和第三方包版本统一锁定在 `runtime.lock.json`。第三方依赖必须在 `requirements.txt` 中同时固定版本和下载文件 SHA-256；准备脚本使用 pip `--require-hashes` 安装。生成的 `Runtime/Python/` 不进入 Git，但会自动进入构建输出和 ClickOnce 发布清单。
+
+`Test-CpythonRuntime.ps1` 可独立检查运行时版本、依赖清单哈希和已安装包。ClickOnce 冒烟测试还会确认锁文件、依赖清单和运行时一起进入安装包，避免发布产物悄悄依赖系统 Python。
+
+开发调试仍允许回退到系统 `PATH`；正式安装包始终携带自己的 CPython。更新 Python 版本时必须同时更新准备脚本中的下载地址和 SHA-256，并重新运行完整阶段回归。
+
+发布前运行 `Run-StageRegression.ps1 -IncludePublish`。其中 `Test-ClickOncePackage.ps1` 会在临时目录生成 ClickOnce 包、核对运行时清单与文件大小、还原模拟安装目录，并在清空系统 Python 路径后执行随附 CPython 和 worker 协议。默认成功后删除临时产物，传入 `-KeepArtifacts` 可保留现场。
+
+`universe_worker.py` 是 VSTO 与 CPython 之间的执行桥。配置继续指定 Python 文件、方法名和任意数量的字符串参数；脚本入口统一写为 `def method(ctx, *parameters)`。同一个文件可以暴露多个方法，不同配置也可以调用不同文件。
+
+`ctx` 是版本化的 Universe Python API，目前版本为 `1.1`，原 `1.0` 方法及参数保持兼容：
+
+- `ctx.invocation`：本次用途、版本、参数和是否无头运行。
+- `ctx.project`：工程名称、根目录、完整版本信息和安全相对路径解析。
+- `ctx.config`：按版本只读访问系统配置和工程自定义配置。
+- `ctx.data`：原 `columns/keys/get/read` 未传版本时仍使用调用版本，再回退到工程首个版本。新增原始快照、旧规则版本复制和批量追加，见 [表读写接口](TABLE_API.md)；新增快照接口的缺省版本是旧 MapData 的空版本，不能与原 `read` 的缺省版本混用。
+- `ctx.log`：写入 debug、info、warning、error 日志。
+- `ctx.output`：在工程目录边界内解析路径、检查文件、写 UTF-8 文本、JSON 或二进制内容。
+
+旧全局对象、任意 C# 反射、属性写入和对象身份代理已删除。宿主对象只通过上述明确接口暴露；独立 Python 脚本仍是普通本机代码，不是安全沙箱。越界 `ctx.output` 路径、未知操作和不支持的 API 版本返回稳定诊断。缺少依赖库返回 `PYTHON_MODULE_NOT_FOUND`；需要的第三方库必须以固定版本写入 `requirements.txt`。
+
+每次调用都会启动独立进程并重新读取脚本，因此工程切换或脚本修改不会复用旧 Scope。默认单次执行超时为 120 秒；进程失败不会直接导致 Excel 进程退出。
+
+旧 VSTO 的字段转换、自定义公式、导出前后置、工具窗口和自动化桥接全部通过 `PythonApplicationServices.Current` 发起调用。`PythonController` 只管理 VSTO/无头生命周期，不再保留旧 `Run` 重载或绕过应用服务的直接执行入口。
