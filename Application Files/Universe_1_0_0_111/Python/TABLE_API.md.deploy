@@ -93,6 +93,10 @@ ctx.data.metrics()                 # source_reads, commits, cache_invalidations
 
 快照一旦进入提交阶段即被消耗，包括底层提交失败；禁止自动重放。进入提交前的参数/保存模式拒绝不会消耗它。空 rows 是无写入成功，applied=false、persisted=false。
 
+实时追加的重算只请求一次，随后在 Excel 主线程处理消息并等待计算状态完成；首次观察为待计算或计算中不会直接失败。不使用固定 Sleep，也不重放追加。计算等待阈值为 120000 毫秒，包含重算请求与等待；同步 COM 请求本身不能安全强行中断，超时在调用返回或协作等待处判定。回滚后只针对已脏依赖请求一次普通 Calculate，另外用 5000 毫秒协作等待恢复公式结果。
+
+`details.calculation` 记录 `request_milliseconds`、`wait_milliseconds`、`states`（状态变化及观察时间）、`last_state/name`、`timeout_milliseconds`、`original_mode/name`、`completed` 和 `timed_out`。阶段耗时另外包含 `formula-excel/recalculate-request`、`recalculate-wait`、`readback`、`rollback`。目标表见 details.target；回滚见 rolled_back、state_unknown、rollback_error 及 details.rollback_calculation。只有计算完成、目标值核验通过才报告成功；新增区域中的公式错误会拒绝提交。不会因为某个耗时数字较大就推断超时。
+
 收据主要字段：`name/snapshot_id/workbook/worksheet/table`、`succeeded`、`applied`、`appended_rows`、`persisted`、`save`、`access_kind`、`code/message/diagnostics`、`stage_duration_milliseconds`、`operation_counts`。提交中异常若无法确认状态，返回 `state_unknown=true, applied=null` 或 `persistence_unknown=true`，必须先核查，不自动重试。
 
 打开工作簿的异常会尝试移除本次新增区域；回滚失败有明确诊断。此模式不宣称能回滚 Excel 中任意外部副作用。跨表不提供整体事务；`append_many` 返回 `tables` 和 `not_attempted`，此前成功表保持成功。

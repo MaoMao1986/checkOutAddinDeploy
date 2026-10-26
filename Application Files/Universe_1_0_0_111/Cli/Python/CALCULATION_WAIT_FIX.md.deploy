@@ -1,0 +1,39 @@
+# 实时追加计算等待修复及验收边界
+
+日期：2026-10-26。范围：旧 CheckOutAddIn VSTO 的 Python snapshot.append，API 仍为 1.1，调用方式不变。
+
+## 发布实现定位
+
+已读取实际 1.0.0.110 发布包的 CheckOutAddIn.Automation.dll，SHA256 为 `5B7F44B92B2A67CADCEB762F796F08A78B7F1B6B2C62D76821D9CD51FB32EF5E`。其 ExcelFormulaTableEditor.AppendLive 包含错误文本“Excel 公式计算尚未完成。”，与该版本源代码的单次状态检查一致：CalculateFullRebuild 返回后，CalculationState 非 0 即抛出。
+
+因此确定的是**首次非完成状态被当成终态失败**。旧收据没有保留实际状态，不能进一步断定现场是 Pending、Calculating、真正超时或哪个公式最慢。873ms 只是旧阶段计时，不证明超时。
+
+## 行为
+
+- 保留整批规划、单次新增区域扩展和批量赋值，不重放已消耗快照。
+- 校验 STA；在 Excel 进程内还校验主窗口所属线程。实时追加只请求一次 CalculateFullRebuild，协作等待状态 0，期间正常处理 Windows/COM 消息。
+- Pending、Calculating 和短暂的 COM 忙碌属于等待状态；未知状态、真正异常和到达期限分别记录。恢复原计算模式后只观察后续工作，不再次请求全量重算。
+- 等待期间禁止交互编辑和同线程追加重入，结束恢复原设置。值回读包含新增区域公式错误检查。memory 成功仍为 applied=true、persisted=false；file 保持原有未保存编辑保护。
+- 失败只删除本批新增区域，保留此前成功表。回滚后的脏依赖用普通 Calculate 恢复；回滚不完整、计算仍未完成或文件状态不明会明确 state_unknown/persistence_unknown，不宣称跨表回滚。
+- 结构化收据保留阶段耗时、状态变化、原计算模式、超时阈值、回读耗时、目标表和回滚结果。未知 applied 保留 null，不再被转成 false。
+
+等待阈值 120 秒是本阶段的保护边界，不是固定等待时间。同步 Excel COM 调用不能被本进程安全强杀；其用时单独计入请求耗时，返回后检查期限。回滚计算另外最多协作等待 5 秒，仍未恢复则明确报告未知状态。
+
+## 隔离回归
+
+`CheckOutAddIn.Compatibility.Tests.exe --live-calculation`：
+
+- 状态已完成、Pending→Calculating→Done、短暂 COM 忙碌，以及恢复模式后再出现 Pending，均只发起一次重算请求。
+- 单独验证真正异常、未知状态、超时；Windows 消息计时器在等待期间确实执行，未用 Sleep 推迟判定。
+- 独立真实 Excel 进程、新建合成工作簿，覆盖自动与手动计算、表内计算列和另一 Sheet 的结构化引用，回读公式结果。
+- memory 不改变磁盘 SHA、不丢失用户未保存值；file 拒绝已有无关编辑，干净工作簿可保存。
+- 第一表成功后，第二表受控超时，验证第二表数据恢复、第一表成功保留、第三表未尝试。
+- 新增公式错误及计算请求异常均拒绝成功并回滚，记录逐表收据。
+
+延迟状态和超时为受控注入；Excel 追加、跨表公式计算、保存、回读与删除回滚本身是真实操作。未提供 quests配置.xlsx 现场副本，不能把上述测试称为真实 quest 验收。
+
+另用既有 `python-table-contract` 验证真正 VSTO 主线程中的 snapshot.append；主线 MapData/Python 回归继续检查部分失败收据及未知 applied 的传递。未修改 legacy_auto_config.py、两个业务脚本、正式业务工作簿或 SVN。
+
+本轮结果：计算专项通过；真实 VSTO 场景 10 步通过；主线回归 403/403；自动化回归 61/61。新增 OperationCounts.CalculationRequests 与 AppendSegments 均验证为 1；回滚恢复使用的普通 Calculate 另记在 rollback_calculation，不算作再次全量重算。阶段字典同时含聚合重算时间与请求/等待子时间，不应直接将全部键相加。
+
+微软接口依据：[CalculationState](https://learn.microsoft.com/en-us/office/vba/api/excel.application.calculationstate)、[CalculateFullRebuild](https://learn.microsoft.com/en-us/office/vba/api/excel.application.calculatefullrebuild)、[MsgWaitForMultipleObjectsEx](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-msgwaitformultipleobjectsex)。
